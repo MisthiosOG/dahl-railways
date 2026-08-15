@@ -124,7 +124,7 @@ function createAccounts() {
   log('Creating ' + count + ' account(s)...', 'info');
   api('/create', 'POST', {count: count}).then(function(d) {
     log('Job started: ' + d.job_id, 'ok');
-    pollJob(d.job_id);
+    pollAndImport(d.job_id);
   }).catch(function(e) { log('Error: ' + e, 'err'); setStatus('Error'); });
 }
 
@@ -134,11 +134,14 @@ function farmAccounts() {
   log('Farming ' + count + ' account(s)...', 'info');
   api('/farm', 'POST', {count: count}).then(function(d) {
     log('Farm job started: ' + d.job_id, 'ok');
-    pollJob(d.job_id);
+    pollAndImport(d.job_id);
   }).catch(function(e) { log('Error: ' + e, 'err'); setStatus('Error'); });
 }
 
-function pollJob(jobId) {
+var SYNTHROPY_URL = localStorage.getItem('synthropy_url') || '';
+var SYNTHROPY_IMPORT = false;
+
+function pollAndImport(jobId) {
   var interval = setInterval(function() {
     api('/jobs/' + jobId).then(function(job) {
       log(job.status + ' (' + (job.created || 0) + '/' + (job.count || 0) + ')', 'info');
@@ -147,6 +150,17 @@ function pollJob(jobId) {
         log('Complete! Created: ' + (job.created || 0), 'ok');
         setStatus('Done');
         refreshAccounts();
+        // Auto-import to Synthropy if configured
+        if (SYNTHROPY_URL) {
+          autoImportToSynthropy();
+        } else {
+          var url = prompt('Auto-import to Synthropy? Enter Synthropy URL (or leave empty to skip):');
+          if (url) {
+            SYNTHROPY_URL = url;
+            localStorage.setItem('synthropy_url', url);
+            autoImportToSynthropy();
+          }
+        }
       } else if (job.status === 'error') {
         clearInterval(interval);
         log('Failed: ' + (job.error || 'unknown'), 'err');
@@ -154,6 +168,46 @@ function pollJob(jobId) {
       }
     });
   }, 3000);
+}
+
+function autoImportToSynthropy() {
+  if (!SYNTHROPY_URL) return;
+  log('Auto-importing to Synthropy...', 'info');
+  setStatus('Importing...');
+  
+  fetch(BASE + '/accounts').then(function(r) { return r.text(); }).then(function(text) {
+    var accounts = [];
+    text.trim().split('\n').forEach(function(line) {
+      if (line.trim()) {
+        try { accounts.push(JSON.parse(line)); } catch(e) {}
+      }
+    });
+    log('Found ' + accounts.length + ' accounts', 'info');
+    var imported = 0;
+    accounts.forEach(function(acc) {
+      if (acc.api_key) {
+        fetch(SYNTHROPY_URL + '/api/signup', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            email: acc.username + '@tmp.synthropy.gg',
+            password: 'dahl_' + acc.api_key.slice(-8)
+          })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.api_key) {
+            imported++;
+            log('Imported: ' + acc.username + ' -> ' + d.api_key.slice(0,12) + '...', 'ok');
+          }
+        }).catch(function(e) {
+          log('Import failed: ' + acc.username, 'err');
+        });
+      }
+    });
+    setTimeout(function() {
+      log('Auto-import complete: ' + imported + '/' + accounts.length, 'ok');
+      setStatus(imported + ' imported');
+    }, 5000);
+  });
 }
 
 function refreshAccounts() {
