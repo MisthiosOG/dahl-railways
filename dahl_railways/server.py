@@ -28,6 +28,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from . import core
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
 
 PORT = int(os.environ.get("PORT", "8080"))
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
@@ -121,11 +125,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {"ok": True, "service": "dahl-railways"})
             return
         if path in ("", "/"):
-            self._send(200, {
-                "service": "dahl-railways",
-                "endpoints": ["/health", "/farm", "/create", "/import", "/accounts", "/jobs/<id>"],
-                "note": "POST /farm {count:N} -> async create + import",
-            })
+            html_file = ROOT / "admin.html"
+            if html_file.is_file():
+                body = html_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self._send(200, {
+                    "service": "dahl-railways",
+                    "endpoints": ["/health", "/farm", "/create", "/import", "/accounts", "/jobs/<id>"],
+                    "note": "POST /farm {count:N} -> async create + import. Upload admin.html for web UI.",
+                })
             return
         if path == "/accounts":
             f = core.ACCOUNTS_FILE
