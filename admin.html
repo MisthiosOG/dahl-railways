@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dahl Railways — Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'SF Mono', monospace;
+    background: #000; color: #fff;
+    line-height: 1.5;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  header {
+    border-bottom: 2px solid #333;
+    padding: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .logo span { color: #666; }
+
+  h1 { font-size: 24px; margin: 32px 0 24px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; flex-wrap: wrap; }
+  .controls input {
+    background: transparent; border: 2px solid #333; color: #fff;
+    font-family: inherit; font-size: 13px; padding: 10px 14px; width: 80px;
+  }
+  .controls button {
+    padding: 10px 20px; border: 2px solid #fff;
+    background: transparent; color: #fff;
+    font-family: inherit; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .5px; cursor: pointer;
+  }
+  .controls button:hover { background: #fff; color: #000; }
+  .controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .controls .status { font-size: 12px; color: #888; margin-left: 12px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { border: 2px solid #333; padding: 16px; background: #0d0d0d; }
+  .stat-card .val { font-size: 22px; font-weight: 700; }
+  .stat-card .lbl { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+  th { text-align: left; padding: 10px 12px; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #666; border-bottom: 2px solid #333; }
+  td { padding: 10px 12px; font-size: 12px; color: #bbb; border-bottom: 1px solid #1a1a1a; word-break: break-all; }
+  td .key { color: #0f0; font-size: 11px; }
+  tr:hover td { background: #0a0a0a; }
+
+  .copy-btn {
+    background: transparent; border: 1px solid #333; color: #666;
+    font-family: inherit; font-size: 9px; cursor: pointer; padding: 4px 8px;
+  }
+  .copy-btn:hover { color: #fff; border-color: #fff; }
+
+  #log { 
+    border: 2px solid #333; padding: 16px; 
+    font-size: 11px; color: #888; max-height: 200px; overflow-y: auto;
+    margin-bottom: 32px; background: #080808;
+  }
+  #log .ok { color: #0f0; }
+  #log .err { color: #f00; }
+  #log .info { color: #888; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">DAHL<span>/ADMIN</span></div>
+  </header>
+
+  <h1>Account Manager</h1>
+
+  <div class="controls">
+    <label style="font-size:12px;color:#888;">Create:</label>
+    <input type="number" id="countInput" value="1" min="1" max="100">
+    <button onclick="createAccounts()">Create</button>
+    <button onclick="farmAccounts()">Farm & Import</button>
+    <button onclick="refreshAccounts()" style="border-color:#555;color:#888;">Refresh</button>
+    <span class="status" id="statusText">Ready</span>
+  </div>
+
+  <div class="stats" id="stats">
+    <div class="stat-card"><div class="val" id="sTotal">0</div><div class="lbl">Accounts</div></div>
+    <div class="stat-card"><div class="val" id="sTokens">0</div><div class="lbl">Total Tokens</div></div>
+    <div class="stat-card"><div class="val" id="sActive">0</div><div class="lbl">Active</div></div>
+    <div class="stat-card"><div class="val" id="sExhausted">0</div><div class="lbl">Exhausted</div></div>
+  </div>
+
+  <div id="log"></div>
+
+  <table>
+    <thead><tr><th>Username</th><th>API Key</th><th>Tokens</th><th>Status</th></tr></thead>
+    <tbody id="accountsBody"></tbody>
+  </table>
+</div>
+
+<script>
+var BASE = window.location.origin;
+var ADMIN_TOKEN = localStorage.getItem('dahl_admin_token');
+
+function log(msg, type) {
+  var el = document.getElementById('log');
+  el.innerHTML += '<div class="' + type + '">> ' + msg + '</div>';
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(s) { document.getElementById('statusText').textContent = s; }
+
+function api(path, method, body) {
+  var opts = { method: method || 'GET', headers: {'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  if (ADMIN_TOKEN) opts.headers['x-admin-token'] = ADMIN_TOKEN;
+  return fetch(BASE + path, opts).then(function(r) { return r.json(); });
+}
+
+function createAccounts() {
+  var count = parseInt(document.getElementById('countInput').value) || 1;
+  setStatus('Creating ' + count + '...');
+  log('Creating ' + count + ' account(s)...', 'info');
+  api('/create', 'POST', {count: count}).then(function(d) {
+    log('Job started: ' + d.job_id, 'ok');
+    pollJob(d.job_id);
+  }).catch(function(e) { log('Error: ' + e, 'err'); setStatus('Error'); });
+}
+
+function farmAccounts() {
+  var count = parseInt(document.getElementById('countInput').value) || 1;
+  setStatus('Farming ' + count + '...');
+  log('Farming ' + count + ' account(s)...', 'info');
+  api('/farm', 'POST', {count: count}).then(function(d) {
+    log('Farm job started: ' + d.job_id, 'ok');
+    pollJob(d.job_id);
+  }).catch(function(e) { log('Error: ' + e, 'err'); setStatus('Error'); });
+}
+
+function pollJob(jobId) {
+  var interval = setInterval(function() {
+    api('/jobs/' + jobId).then(function(job) {
+      log(job.status + ' (' + (job.created || 0) + '/' + (job.count || 0) + ')', 'info');
+      if (job.status === 'done') {
+        clearInterval(interval);
+        log('Complete! Created: ' + (job.created || 0), 'ok');
+        setStatus('Done');
+        refreshAccounts();
+      } else if (job.status === 'error') {
+        clearInterval(interval);
+        log('Failed: ' + (job.error || 'unknown'), 'err');
+        setStatus('Error');
+      }
+    });
+  }, 3000);
+}
+
+function refreshAccounts() {
+  setStatus('Loading...');
+  api('/accounts').then(function(d) {
+    var accounts = d.accounts || [];
+    var tbody = document.getElementById('accountsBody');
+    tbody.innerHTML = '';
+    var totalTokens = 0, active = 0, exhausted = 0;
+    accounts.forEach(function(acc) {
+      var tr = document.createElement('tr');
+      var tokens = acc.available_tokens || 0;
+      totalTokens += tokens;
+      var status = tokens > 0 ? 'active' : 'exhausted';
+      if (tokens > 0) active++; else exhausted++;
+      tr.innerHTML = '<td>' + acc.username + '</td>' +
+        '<td><span class="key">' + acc.api_key + '</span> <button class="copy-btn" onclick="copyKey(\'' + acc.api_key + '\')">Copy</button></td>' +
+        '<td>' + fmt(tokens) + '</td>' +
+        '<td>' + status + '</td>';
+      tbody.appendChild(tr);
+    });
+    document.getElementById('sTotal').textContent = accounts.length;
+    document.getElementById('sTokens').textContent = fmt(totalTokens);
+    document.getElementById('sActive').textContent = active;
+    document.getElementById('sExhausted').textContent = exhausted;
+    setStatus(accounts.length + ' accounts loaded');
+  }).catch(function(e) { log('Load failed: ' + e, 'err'); setStatus('Error'); });
+}
+
+function fmt(n) {
+  if (n >= 1000000) return Math.floor(n/10000)/100 + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function copyKey(key) {
+  navigator.clipboard.writeText(key);
+  log('API key copied!', 'ok');
+}
+
+// Initial load
+refreshAccounts();
+</script>
+</body>
+</html>
