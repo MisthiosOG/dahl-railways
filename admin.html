@@ -79,6 +79,7 @@
     <input type="number" id="countInput" value="1" min="1" max="100">
     <button onclick="createAccounts()">Create</button>
     <button onclick="farmAccounts()">Farm & Import</button>
+    <button onclick="importToSynthropy()">Import to Synthropy</button>
     <button onclick="refreshAccounts()" style="border-color:#555;color:#888;">Refresh</button>
     <span class="status" id="statusText">Ready</span>
   </div>
@@ -157,8 +158,13 @@ function pollJob(jobId) {
 
 function refreshAccounts() {
   setStatus('Loading...');
-  api('/accounts').then(function(d) {
-    var accounts = d.accounts || [];
+  fetch(BASE + '/accounts').then(function(r) { return r.text(); }).then(function(text) {
+    var accounts = [];
+    text.trim().split('\n').forEach(function(line) {
+      if (line.trim()) {
+        try { accounts.push(JSON.parse(line)); } catch(e) {}
+      }
+    });
     var tbody = document.getElementById('accountsBody');
     tbody.innerHTML = '';
     var totalTokens = 0, active = 0, exhausted = 0;
@@ -168,8 +174,8 @@ function refreshAccounts() {
       totalTokens += tokens;
       var status = tokens > 0 ? 'active' : 'exhausted';
       if (tokens > 0) active++; else exhausted++;
-      tr.innerHTML = '<td>' + acc.username + '</td>' +
-        '<td><span class="key">' + acc.api_key + '</span> <button class="copy-btn" onclick="copyKey(\'' + acc.api_key + '\')">Copy</button></td>' +
+      tr.innerHTML = '<td>' + (acc.username || '?') + '</td>' +
+        '<td><span class="key">' + (acc.api_key || '?') + '</span> <button class="copy-btn" onclick="copyKey(\'' + (acc.api_key || '') + '\')">Copy</button></td>' +
         '<td>' + fmt(tokens) + '</td>' +
         '<td>' + status + '</td>';
       tbody.appendChild(tr);
@@ -180,6 +186,52 @@ function refreshAccounts() {
     document.getElementById('sExhausted').textContent = exhausted;
     setStatus(accounts.length + ' accounts loaded');
   }).catch(function(e) { log('Load failed: ' + e, 'err'); setStatus('Error'); });
+}
+
+function importToSynthropy() {
+  var url = prompt('Synthropy API URL (e.g. https://synthropy-api-production.up.railway.app):');
+  if (!url) return;
+  var key = prompt('Synthropy admin key (optional):');
+  setStatus('Importing to Synthropy...');
+  log('Importing accounts to Synthropy...', 'info');
+  
+  fetch(BASE + '/accounts').then(function(r) { return r.text(); }).then(function(text) {
+    var accounts = [];
+    text.trim().split('\n').forEach(function(line) {
+      if (line.trim()) {
+        try { accounts.push(JSON.parse(line)); } catch(e) {}
+      }
+    });
+    log('Found ' + accounts.length + ' accounts to import', 'info');
+    var imported = 0;
+    accounts.forEach(function(acc) {
+      if (acc.api_key) {
+        var opts = {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            email: acc.username + '@temp.synthropy.gg',
+            password: 'temp_' + acc.api_key.slice(-8)
+          })
+        };
+        if (key) opts.headers['x-admin-token'] = key;
+        fetch(url + '/api/signup', opts).then(function(r) {
+          return r.json();
+        }).then(function(d) {
+          if (d.api_key) {
+            imported++;
+            log('Imported: ' + acc.username + ' -> syn key: ' + d.api_key.slice(0,12) + '...', 'ok');
+          }
+        }).catch(function(e) {
+          log('Import failed for ' + acc.username + ': ' + e, 'err');
+        });
+      }
+    });
+    setTimeout(function() {
+      log('Import complete: ' + imported + '/' + accounts.length + ' accounts', 'ok');
+      setStatus('Imported ' + imported);
+    }, 5000);
+  });
 }
 
 function fmt(n) {
