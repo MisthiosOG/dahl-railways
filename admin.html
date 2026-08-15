@@ -83,6 +83,12 @@
     <button onclick="refreshAccounts()" style="border-color:#555;color:#888;">Refresh</button>
     <span class="status" id="statusText">Ready</span>
   </div>
+  <div class="controls" style="border-top:1px solid #1a1a1a;padding-top:12px;">
+    <label style="font-size:12px;color:#888;">Synthropy URL:</label>
+    <input type="text" id="synUrl" style="width:300px;" placeholder="https://synthropy-api-production.up.railway.app">
+    <button onclick="saveSynUrl()" style="border-color:#555;color:#888;font-size:10px;">Save</button>
+    <span style="font-size:11px;color:#555;" id="synStatus"></span>
+  </div>
 
   <div class="stats" id="stats">
     <div class="stat-card"><div class="val" id="sTotal">0</div><div class="lbl">Accounts</div></div>
@@ -141,6 +147,23 @@ function farmAccounts() {
 var SYNTHROPY_URL = localStorage.getItem('synthropy_url') || '';
 var SYNTHROPY_IMPORT = false;
 
+// Load saved URL on page load
+(function() {
+  var input = document.getElementById('synUrl');
+  if (input && SYNTHROPY_URL) {
+    input.value = SYNTHROPY_URL;
+    document.getElementById('synStatus').textContent = 'Connected';
+  }
+})();
+
+function saveSynUrl() {
+  var input = document.getElementById('synUrl');
+  SYNTHROPY_URL = input.value.trim();
+  localStorage.setItem('synthropy_url', SYNTHROPY_URL);
+  document.getElementById('synStatus').textContent = SYNTHROPY_URL ? 'Saved' : 'Cleared';
+  setTimeout(function() { document.getElementById('synStatus').textContent = ''; }, 2000);
+}
+
 function pollAndImport(jobId) {
   var interval = setInterval(function() {
     api('/jobs/' + jobId).then(function(job) {
@@ -150,16 +173,8 @@ function pollAndImport(jobId) {
         log('Complete! Created: ' + (job.created || 0), 'ok');
         setStatus('Done');
         refreshAccounts();
-        // Auto-import to Synthropy if configured
         if (SYNTHROPY_URL) {
           autoImportToSynthropy();
-        } else {
-          var url = prompt('Auto-import to Synthropy? Enter Synthropy URL (or leave empty to skip):');
-          if (url) {
-            SYNTHROPY_URL = url;
-            localStorage.setItem('synthropy_url', url);
-            autoImportToSynthropy();
-          }
         }
       } else if (job.status === 'error') {
         clearInterval(interval);
