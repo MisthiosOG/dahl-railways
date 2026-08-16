@@ -80,6 +80,7 @@
     <button onclick="createAccounts()">Create</button>
     <button onclick="farmAccounts()">Farm & Import</button>
     <button onclick="importToSynthropy()">Import to Synthropy</button>
+    <button onclick="showSynKeys()" style="border-color:#555;color:#888;">Syn Keys</button>
     <button onclick="refreshAccounts()" style="border-color:#555;color:#888;">Refresh</button>
     <span class="status" id="statusText">Ready</span>
   </div>
@@ -330,6 +331,26 @@ function fmt(n) {
 function copyKey(key) {
   navigator.clipboard.writeText(key);
   log('API key copied!', 'ok');
+}
+
+function showSynKeys() {
+  if (!SYNTHROPY_URL) { log('Set Synthropy URL first', 'err'); return; }
+  log('Loading Synthropy accounts...', 'info');
+  // Try to get accounts via dashboard API with a known key pattern
+  fetch(SYNTHROPY_URL + '/api/admin/users', {
+    headers: {'Content-Type': 'application/json'}
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.users) {
+      log('Synthropy accounts (' + d.users.length + '):', 'info');
+      d.users.forEach(function(u) {
+        log(u.email + ' -> ' + u.api_key, 'ok');
+      });
+    } else {
+      log('No users endpoint available', 'err');
+    }
+  }).catch(function(e) {
+    log('Failed to load: ' + e, 'err');
+  });
 }
 
 // Initial load
