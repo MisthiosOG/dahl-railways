@@ -198,6 +198,20 @@ function autoImportToSynthropy() {
       }
     });
     log('Found ' + accounts.length + ' accounts', 'info');
+    
+    // Set the first Dahl API key as the server's DAHL_API_KEY
+    if (accounts.length > 0 && accounts[0].api_key) {
+      fetch(SYNTHROPY_URL + '/api/admin/dahl-key', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({dahl_api_key: accounts[0].api_key})
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        log('Dahl API key set on server: ' + (d.ok ? 'OK' : 'FAIL'), d.ok ? 'ok' : 'err');
+      }).catch(function(e) {
+        log('Failed to set Dahl key: ' + e, 'err');
+      });
+    }
+    
     var imported = 0;
     accounts.forEach(function(acc) {
       if (acc.api_key) {
