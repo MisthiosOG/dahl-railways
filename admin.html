@@ -218,11 +218,12 @@ function autoImportToSynthropy() {
     var imported = 0;
     accounts.forEach(function(acc) {
       if (acc.api_key) {
+        var ts = Date.now() + '_' + Math.random().toString(36).slice(2,6);
         fetch(SYNTHROPY_URL + '/api/signup', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
-            email: acc.username + '@tmp.synthropy.gg',
+            email: acc.username + '_' + ts + '@tmp.synthropy.gg',
             password: 'dahl_' + acc.api_key.slice(-8)
           })
         }).then(function(r) { return r.json(); }).then(function(d) {
