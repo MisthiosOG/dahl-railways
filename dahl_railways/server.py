@@ -77,7 +77,7 @@ def _run_create(job: dict[str, Any], count: int, threads: int) -> None:
         res = core.cmd_create(count, threads=threads)
         # Persist for /accounts download.
         try:
-            with open(core.ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+            with open(core.ACCOUNTS_FILE, "a", encoding="utf-8") as f:
                 for acc in res.get("accounts", []):
                     f.write(json.dumps(acc) + "\n")
         except Exception:
