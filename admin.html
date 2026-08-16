@@ -258,25 +258,29 @@ function refreshAccounts() {
         try { accounts.push(JSON.parse(line)); } catch(e) {}
       }
     });
+    // Show latest 20 accounts
+    var display = accounts.slice(-20).reverse();
     var tbody = document.getElementById('accountsBody');
     tbody.innerHTML = '';
     var totalTokens = 0, active = 0, exhausted = 0;
-    accounts.forEach(function(acc) {
-      var tr = document.createElement('tr');
+    display.forEach(function(acc) {
       var tokens = acc.available_tokens || 0;
       totalTokens += tokens;
       var status = tokens > 0 ? 'active' : 'exhausted';
       if (tokens > 0) active++; else exhausted++;
-      tr.innerHTML = '<td>' + (acc.username || '?') + '</td>' +
-        '<td><span class="key">' + (acc.api_key || '?') + '</span> <button class="copy-btn" onclick="copyKey(\'' + (acc.api_key || '') + '\')">Copy</button></td>' +
+      var key = (acc.api_key || '').slice(0, 16) + '...';
+      tbody.innerHTML += '<tr><td>' + (acc.username || '?') + '</td>' +
+        '<td><span class="key">' + key + '</span></td>' +
         '<td>' + fmt(tokens) + '</td>' +
-        '<td>' + status + '</td>';
-      tbody.appendChild(tr);
+        '<td>' + status + '</td></tr>';
     });
     document.getElementById('sTotal').textContent = accounts.length;
     document.getElementById('sTokens').textContent = fmt(totalTokens);
     document.getElementById('sActive').textContent = active;
     document.getElementById('sExhausted').textContent = exhausted;
+    if (accounts.length > 20) {
+      tbody.innerHTML += '<tr><td colspan="4" style="text-align:center;color:#555;font-size:11px;">Showing latest 20 of ' + accounts.length + ' accounts</td></tr>';
+    }
     setStatus(accounts.length + ' accounts loaded');
   }).catch(function(e) { log('Load failed: ' + e, 'err'); setStatus('Error'); });
 }
