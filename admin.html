@@ -217,6 +217,7 @@ function autoImportToSynthropy() {
     }
     
     var imported = 0;
+    var lastKey = '';
     accounts.forEach(function(acc) {
       if (acc.api_key) {
         var ts = Date.now() + '_' + Math.random().toString(36).slice(2,6);
@@ -230,6 +231,7 @@ function autoImportToSynthropy() {
         }).then(function(r) { return r.json(); }).then(function(d) {
           if (d.api_key) {
             imported++;
+            lastKey = d.api_key;
             log('Imported: ' + acc.username + ' -> ' + d.api_key.slice(0,12) + '...', 'ok');
           }
         }).catch(function(e) {
@@ -239,6 +241,9 @@ function autoImportToSynthropy() {
     });
     setTimeout(function() {
       log('Auto-import complete: ' + imported + '/' + accounts.length, 'ok');
+      if (lastKey) {
+        log('Playground: ' + SYNTHROPY_URL + '/playground.html?key=' + lastKey, 'ok');
+      }
       setStatus(imported + ' imported');
     }, 5000);
   });
